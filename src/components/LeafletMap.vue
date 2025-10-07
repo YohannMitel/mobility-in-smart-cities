@@ -1,5 +1,5 @@
 <script setup>
-// All comments are in English as requested
+
 import { onMounted, onBeforeUnmount, ref, watch, defineEmits, defineProps, nextTick } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -9,8 +9,8 @@ import 'leaflet/dist/leaflet.css'
 // =======================
 const props = defineProps({
   center: {
-    type: Object, // { lat, lng }
-    default: () => ({ lat: 48.8566, lng: 2.3522 }) // Paris by default
+    type: Object, 
+    default: () => ({ lat: 48.8566, lng: 2.3522 })
   },
   zoom: {
     type: Number,
@@ -28,7 +28,7 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  // Array of paths like [{ person: 1, path: [1,4], cost: 31 }, ...]
+  
   paths: {
     type: Array,
     default: () => []
@@ -41,7 +41,7 @@ const props = defineProps({
     type: String,
     default: '400px'
   },
-  // id of marker to highlight in green
+  
   highlightId: {
     type: Number,
     default: null
@@ -83,18 +83,17 @@ function iconBase(color, path) {
   })
 }
 
-// SVG paths for stops and persons
+
 const pathStop = "M128 252.6C128 148.4 214 64 320 64C426 64 512 148.4 512 252.6C512 371.9 391.8 514.9 341.6 569.4C329.8 582.2 310.1 582.2 298.3 569.4C248.1 514.9 127.9 371.9 127.9 252.6zM320 320C355.3 320 384 291.3 384 256C384 220.7 355.3 192 320 192C284.7 192 256 220.7 256 256C256 291.3 284.7 320 320 320z";
 const pathPerson = "M376 88C376 57.1 350.9 32 320 32C289.1 32 264 57.1 264 88C264 118.9 289.1 144 320 144C350.9 144 376 118.9 376 88zM400 300.7L446.3 363.1C456.8 377.3 476.9 380.3 491.1 369.7C505.3 359.1 508.3 339.1 497.7 324.9L427.2 229.9C402 196 362.3 176 320 176C277.7 176 238 196 212.8 229.9L142.3 324.9C131.8 339.1 134.7 359.1 148.9 369.7C163.1 380.3 183.1 377.3 193.7 363.1L240 300.7L240 576C240 593.7 254.3 608 272 608C289.7 608 304 593.7 304 576L304 416C304 407.2 311.2 400 320 400C328.8 400 336 407.2 336 416L336 576C336 593.7 350.3 608 368 608C385.7 608 400 593.7 400 576L400 300.7z";
 
-// Base icons (black)
+
 const stopIcon = iconBase("#000000", pathStop);
 const personIcon = iconBase("#000000", pathPerson);
-// Green highlight versions
+
 const greenStopIcon = iconBase("#00C853", pathStop);
 const greenPersonIcon = iconBase("#00C853", pathPerson);
 
-// Function to get correct icon
 function getIconForNode(marker) {
   if (props.highlightId && marker.id === props.highlightId) {
     return marker.type === 'stop' ? greenStopIcon : greenPersonIcon;
@@ -175,7 +174,6 @@ async function drawPaths() {
     }
   });
 
-  // Wait for all routes to be fetched and displayed
   await Promise.all(fetchPromises);
 
   if (!pathLayerGroup._map) pathLayerGroup.addTo(mapInstance);

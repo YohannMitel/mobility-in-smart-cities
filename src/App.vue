@@ -62,8 +62,8 @@ import { onMounted, ref } from 'vue'
 import LeafletMap from './components/LeafletMap.vue'
 import DatasetTable from './components/DatasetTable.vue'
 import TransitivePart from './components/TransitivePart.vue'
-import nodes from './datasets/nodes.js' // example dataset import
-import edges from './datasets/edges.js' // example dataset import
+import nodes from './datasets/nodes.js' 
+import edges from './datasets/edges.js'
 
 const markers = ref(nodes)
 const activeTab = ref('dataset')
