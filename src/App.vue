@@ -1,107 +1,109 @@
 <template>
-  <div class="map-wrap justify-content-center">
-    <div class="left">
-      <canvas ref="canvasEl" class="m-auto"></canvas>
-    </div>
+  <div class="container-fluid d-flex flex-column h-100 p-3 gap-3">
 
-    <div>
-      <div class="mb-2">
-      <button class="btn btn-primary me-2" @click="activeMenu = 'controls'">Menu Contrôles</button>
-      <button class="btn btn-secondary" @click="activeMenu = 'other'">Menu Autre</button>
-      </div>
-      <div v-if="activeMenu === 'controls'" class="controls">
-      <div class="modes">
-        <button :class="{active: currentMode === 'person'}" @click="selectMode('person')">👤 Personne</button>
-        <button :class="{active: currentMode === 'bus'}" @click="selectMode('bus')">🚌 Bus</button>
-        <button :class="{active: currentMode === 'flag'}" @click="selectMode('flag')">🚩 Destination</button>
-      </div>
-      <h4>Parameters</h4>
-      <label>Colonnes: <input type="number" v-model.number="cols" min="1" /></label>
-      <label>Lignes: <input type="number" v-model.number="rows" min="1" /></label>
-      <label>Taille case (px): <input type="number" v-model.number="size" min="8" /></label>
-      <div class="actions">
-        <button @click="recreate">recreate map</button>
-        <button @click="reset">Reset</button>
-      </div>
-      <div class="legend">
-        <h4>Légende</h4>
-        <div>👤 Personne</div>
-        <div>🚌 Arrêt de bus</div>
-        <div>🚩 Destination</div>
-      </div>
-      </div>
-      <div v-else-if="activeMenu === 'other'" class="controls">
-      <!-- Ajoute ici le contenu de ton deuxième menu -->
-      <h4>Autre menu</h4>
-      <p>Contenu personnalisé...</p>
+    <LeafletMap ref="leafletMap" v-show="!bottomFullScreen" class="h-50" :center="{ lat: 47.559384, lng: 6.855469 }" :zoom="13" :markers="markers" :highlightId="highlightedNode"
+      :scrollWheelZoom="true" height="500px" @map-ready="onMapReady" @marker-click="handleMarkerClick" @geometric-median-click="handleGeometricMedianClick" @directions-for-each-person-click="handleDirectionsForEachPersonClick" />
+
+
+    <div class="d-flex flex-column">
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" :class="{ active: activeTab === 'dataset' }" @click="activeTab = 'dataset'"
+            type="button" role="tab" aria-selected="activeTab === 'dataset'">
+            Dataset
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" :class="{ active: activeTab === 'functions' }" @click="activeTab = 'functions'"
+            type="button" role="tab" aria-selected="activeTab === 'functions'">
+            Transitive closure
+          </button>
+        </li>
+
+        <li class="ms-auto">
+          <button class="btn btn-light" @click="bottomFullScreen = !bottomFullScreen">
+            <i :class="[bottomFullScreen ? 'fa-solid fa-compress' : 'fa-solid fa-expand']"></i>
+          </button>
+        </li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade" :class="{ 'show active': activeTab === 'dataset' }" role="tabpanel">
+            <div :style="bottomFullScreen ? { overflowY: 'auto' } : { maxHeight: '250px', overflowY: 'auto' }">
+            <DatasetTable :nodes="markers" />
+            </div>
+        </div>
+        <div class="tab-pane fade" :class="{ 'show active': activeTab === 'functions' }" role="tabpanel">
+          <div class="d-flex flex-column" :style="bottomFullScreen ? { overflowY: 'auto' } : { maxHeight: '250px', overflowY: 'auto' }">
+           <!-- <div class="input-group input-group-sm mb-3">
+
+              <span class="input-group-text">Active</span>
+              <button class="btn btn-outline-secondary">Transitive closure</button>
+              <button class="btn btn-outline-secondary">Geometric median</button>
+              <button class="btn btn-outline-secondary">Directions for each person</button>
+
+            </div>
+            -->
+            <TransitivePart ref="transitivePart" :nodes="nodes" :edges="edges"  />
+          </div>
+
+
+        </div>
       </div>
     </div>
   </div>
+
+
 </template>
 
+
+
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import Map from './libs/Map.js';
+import { onMounted, ref } from 'vue'
+import LeafletMap from './components/LeafletMap.vue'
+import DatasetTable from './components/DatasetTable.vue'
+import TransitivePart from './components/TransitivePart.vue'
+import nodes from './datasets/nodes.js' // example dataset import
+import edges from './datasets/edges.js' // example dataset import
 
-const canvasEl = ref(null);
-let map = null;
+const markers = ref(nodes)
+const activeTab = ref('dataset')
+const bottomFullScreen = ref(false);
+const transitivePart = ref(null);
+const leafletMap = ref(null);
+const highlightedNode = ref(null);
 
-const cols = ref(19);
-const rows = ref(17);
-const size = ref(32);
-const activeMenu = ref('controls'); // 'controls' or 'other'
+console.log('nodes:', nodes)
+function handleMarkerClick(payload) {
+  console.log('marker-click:', payload)
+}
+
+function handleGeometricMedianClick() {
+  if(transitivePart.value) {
+    const bestNode = transitivePart.value.computeBestNode();
+    console.log("Best node from TransitivePart:", bestNode);
+    if(!bestNode.node.lat || !bestNode.node.lng) return
+    if(bestNode && leafletMap.value && leafletMap.value.flyTo) {
+      leafletMap.value.flyTo(bestNode.node.lat, bestNode.node.lng, 15);
+      highlightedNode.value = bestNode.node.id;
+    }
+  }
+  console.log('geometric-median-click')
+}
+
+function handleDirectionsForEachPersonClick() {
+  console.log('directions-for-each-person-click')
+}
+
+let api = null
 
 
-const timeMatrix = ref([
-  [0, 10, 15],
-  [10, 0, 12],
-  [15, 12, 0]
-]);
+function onMapReady(exposed) {
+  api = exposed
+  api.fitToMarkers()
+}
 
-const currentMode = ref(null); 
 
 onMounted(() => {
-  map = new Map(cols.value, rows.value, size.value);
-  map.attachTo(canvasEl.value);
-});
-
-onBeforeUnmount(() => {
-  if (map) map.detach();
-});
-
-function selectMode(kind) {
-  console.log(map.getPerson())
-  currentMode.value = kind;
-  map?.setMode(kind);
-}
-
-
-
-function reset() {
-  map?._initGrid();
-  map?.render();
-}
-
-function recreate() {
-  if (map) {
-    map.detach();
-    map = new Map(cols.value, rows.value, size.value);
-    map.attachTo(canvasEl.value);
-    map.setMode(currentMode.value);
-  }
-}
-
-
+  console.log('leafletMap:', leafletMap.value)
+})
 </script>
-
-<style>
-.map-wrap { display: flex; align-items: flex-start; gap: 16px; height: 100%; padding: 12px }
-canvas { image-rendering: crisp-edges; border: 1px solid #ddd; display:block }
-.controls { width: 260px; display:flex; flex-direction:column; gap:8px }
-.controls label { display:flex; justify-content:space-between; gap:8px }
-.modes button { margin-right:6px }
-.actions button { margin-right:6px }
-.active { background:rgb(206, 229, 222); color:white }
-.legend { font-size: 13px; color:#333 }
-
-</style>
