@@ -28,6 +28,11 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  // Array of paths like [{ person: 1, path: [1,4], cost: 31 }, ...]
+  paths: {
+    type: Array,
+    default: () => []
+  },
   scrollWheelZoom: {
     type: Boolean,
     default: true
@@ -36,7 +41,7 @@ const props = defineProps({
     type: String,
     default: '400px'
   },
-  // ✅ NEW: id of marker to highlight in green
+  // id of marker to highlight in green
   highlightId: {
     type: Number,
     default: null
@@ -57,6 +62,7 @@ const mapContainer = ref(null)
 let mapInstance = null
 let tileLayer = null
 const markerLayerGroup = L.layerGroup()
+const pathLayerGroup = L.layerGroup()
 
 // =======================
 // === ICONS ============
@@ -77,19 +83,18 @@ function iconBase(color, path) {
   })
 }
 
-// SVG paths from your existing icons
+// SVG paths for stops and persons
 const pathStop = "M128 252.6C128 148.4 214 64 320 64C426 64 512 148.4 512 252.6C512 371.9 391.8 514.9 341.6 569.4C329.8 582.2 310.1 582.2 298.3 569.4C248.1 514.9 127.9 371.9 127.9 252.6zM320 320C355.3 320 384 291.3 384 256C384 220.7 355.3 192 320 192C284.7 192 256 220.7 256 256C256 291.3 284.7 320 320 320z";
 const pathPerson = "M376 88C376 57.1 350.9 32 320 32C289.1 32 264 57.1 264 88C264 118.9 289.1 144 320 144C350.9 144 376 118.9 376 88zM400 300.7L446.3 363.1C456.8 377.3 476.9 380.3 491.1 369.7C505.3 359.1 508.3 339.1 497.7 324.9L427.2 229.9C402 196 362.3 176 320 176C277.7 176 238 196 212.8 229.9L142.3 324.9C131.8 339.1 134.7 359.1 148.9 369.7C163.1 380.3 183.1 377.3 193.7 363.1L240 300.7L240 576C240 593.7 254.3 608 272 608C289.7 608 304 593.7 304 576L304 416C304 407.2 311.2 400 320 400C328.8 400 336 407.2 336 416L336 576C336 593.7 350.3 608 368 608C385.7 608 400 593.7 400 576L400 300.7z";
 
-// Base icons
+// Base icons (black)
 const stopIcon = iconBase("#000000", pathStop);
 const personIcon = iconBase("#000000", pathPerson);
-
-// ✅ Green versions (highlight)
+// Green highlight versions
 const greenStopIcon = iconBase("#00C853", pathStop);
 const greenPersonIcon = iconBase("#00C853", pathPerson);
 
-// Function returning the correct icon
+// Function to get correct icon
 function getIconForNode(marker) {
   if (props.highlightId && marker.id === props.highlightId) {
     return marker.type === 'stop' ? greenStopIcon : greenPersonIcon;
@@ -118,6 +123,62 @@ function rebuildMarkers() {
   if (mapInstance && !markerLayerGroup.getLayers().length) return;
   if (mapInstance && !markerLayerGroup._map)
     markerLayerGroup.addTo(mapInstance);
+}
+
+// =======================
+// === Draw Paths ========
+// =======================
+async function drawPaths() {
+  if (!mapInstance) return;
+  pathLayerGroup.clearLayers();
+
+  if (!props.paths || !props.paths.length) return;
+
+  const idToMarker = new Map(props.markers.map(m => [m.id, m]));
+
+  // Create an array of promises to fetch all routes in parallel
+  const fetchPromises = props.paths.map(async (route) => {
+    const color = `hsl(${Math.floor(Math.random() * 360)}, 85%, 50%)`;
+    const coords = route.path
+      .map(id => idToMarker.get(id))
+      .filter(m => m)
+      .map(m => [m.lat, m.lng]);
+
+    if (coords.length < 2) return null;
+
+    const start = coords[0];
+    const end = coords[coords.length - 1];
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+
+    try {
+      const res = await fetch(osrmUrl);
+      const data = await res.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const geometry = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+
+        const polyline = L.polyline(geometry, {
+          color,
+          weight: 5,
+          opacity: 0.9
+        }).addTo(pathLayerGroup);
+
+        const personLabel = idToMarker.get(route.person)?.label ?? `Person ${route.person}`;
+        const destLabel = idToMarker.get(route.path.at(-1))?.label ?? 'Destination';
+        polyline.bindPopup(`${personLabel} → ${destLabel}<br>Cost: ${route.cost}`);
+
+        return polyline;
+      }
+    } catch (err) {
+      console.error("OSRM route fetch error:", err);
+      return null;
+    }
+  });
+
+  // Wait for all routes to be fetched and displayed
+  await Promise.all(fetchPromises);
+
+  if (!pathLayerGroup._map) pathLayerGroup.addTo(mapInstance);
 }
 
 // =======================
@@ -154,17 +215,15 @@ onMounted(async () => {
   }).addTo(mapInstance);
 
   markerLayerGroup.addTo(mapInstance);
+  pathLayerGroup.addTo(mapInstance);
+
   rebuildMarkers();
+  drawPaths();
 
-  emit('map-ready', {
-    flyTo,
-    fitToMarkers,
-    getMap: () => mapInstance
-  });
-
+  emit('map-ready', { flyTo, fitToMarkers, getMap: () => mapInstance });
   setTimeout(() => mapInstance.invalidateSize(), 0);
 
-  // === Custom top-right control buttons ===
+  // === Custom control buttons ===
   const customControl = L.Control.extend({
     onAdd: function () {
       const div = L.DomUtil.create('div', '');
@@ -205,14 +264,18 @@ watch(() => props.markers, () => {
   rebuildMarkers();
 }, { deep: true });
 
-// ✅ NEW: rebuild when highlightId changes
+watch(() => props.paths, () => {
+  drawPaths();
+}, { deep: true });
+
 watch(() => props.highlightId, () => {
   rebuildMarkers();
 });
 
 defineExpose({
   flyTo,
-  fitToMarkers
+  fitToMarkers,
+  drawPaths
 });
 </script>
 
@@ -224,5 +287,5 @@ defineExpose({
 </template>
 
 <style scoped>
-/* The container gets its height from the prop */
+/* Minimal styling */
 </style>

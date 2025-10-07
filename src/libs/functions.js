@@ -86,4 +86,65 @@ export function graphMedianNode(nodes, closureMatrix) {
   return { node: nodes[bestIdx], cost: bestCost };
 }
 
+///////////////////////////////////////////
 
+// === Reconstruct minimal path using closure matrix ===
+function findPath(fromId, toId, nodes, matrixClosure) {
+  nodes;
+  const closure = matrixClosure;
+  const idToIndex = new Map(nodes.map((n, i) => [n.id, i]));
+
+  const start = idToIndex.get(fromId);
+  const end = idToIndex.get(toId);
+  if (start === undefined || end === undefined) return null;
+
+  const visited = new Set();
+  const queue = [[start, [start]]];
+
+  while (queue.length > 0) {
+    const [current, path] = queue.shift();
+    if (current === end) {
+      return path.map(i => nodes[i]);
+    }
+
+    for (let j = 0; j < closure.length; j++) {
+      if (closure[current][j] > 0 && !visited.has(j)) {
+        const possibleDist = closure[current][j] + closure[j][end];
+        if (possibleDist === closure[current][end]) {
+          visited.add(j);
+          queue.push([j, [...path, j]]);
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// === Compute directions for all persons ===
+export function computeDirections(nodes,matrixClosure,bestNode) {
+  if (!bestNode) return;
+  const people = nodes.filter(n => n.type === "person");
+  const medianId = bestNode.node.id;
+  const results = [];
+
+  people.forEach(person => {
+    const path = findPath(person.id, medianId, nodes, matrixClosure);
+    if (path) {
+      const totalCost =
+        matrixClosure[
+          nodes.findIndex(n => n.id === person.id)
+        ][
+          nodes.findIndex(n => n.id === medianId)
+        ];
+
+      results.push({
+        person: person.id,
+        path: path.map(n => n.id),
+        cost: totalCost
+      });
+    }
+  });
+
+  return results;
+}

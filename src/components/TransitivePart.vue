@@ -17,7 +17,7 @@
 
             <!-- Matrice initiale -->
             <div class="d-flex flex-column">
-                <h4 class="text-xl font-semibold">Matrice initiale ({{ mode }})</h4>
+                <h4 class="text-xl font-semibold">Initial matrix ({{ mode }})</h4>
                 <table class="border-collapse border border-gray-400 text-center w-full">
                     <thead>
                         <tr>
@@ -42,7 +42,7 @@
             </div>
 
             <div class="d-flex flex-column">
-                <h4 class="text-xl font-semibold">Matrice après fermeture transitive</h4>
+                <h4 class="text-xl font-semibold">Matrix after transitive closure</h4>
                 <table class="border-collapse border border-gray-400 text-center w-full">
                     <thead>
                         <tr>
@@ -74,7 +74,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { buildMatrix, transitiveClosure, graphMedianNode } from '../libs/functions.js';
+import { buildMatrix, transitiveClosure, graphMedianNode, computeDirections } from '../libs/functions.js';
 
 
 const props = defineProps({
@@ -93,6 +93,7 @@ const matrixInitial = ref([]);
 const matrixClosure = ref([]);
 const mode = ref("time"); 
 const bestNode = ref(null); 
+const directions = ref([]);
 
 onMounted(() => {
     console.log("nodes:", props.nodes);
@@ -102,15 +103,26 @@ onMounted(() => {
     matrixInitial.value = m;
     matrixClosure.value = transitiveClosure(m);
     bestNode.value = graphMedianNode(props.nodes, matrixClosure.value);
-    console.log("Best node:", bestNode.value);
+    directions.value = computeDirections(props.nodes, matrixClosure.value, bestNode.value);
+
+
+
+
 });
 
 const computeBestNode = () => {
     return bestNode.value;
+
+}
+
+
+const computeDirectionsFunc = () => {
+    return directions.value;
 }
 
 defineExpose({
-    computeBestNode
+    computeBestNode,
+    computeDirectionsFunc
 });
 
 </script>

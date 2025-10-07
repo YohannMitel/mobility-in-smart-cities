@@ -2,7 +2,7 @@
   <div class="container-fluid d-flex flex-column h-100 p-3 gap-3">
 
     <LeafletMap ref="leafletMap" v-show="!bottomFullScreen" class="h-50" :center="{ lat: 47.559384, lng: 6.855469 }" :zoom="13" :markers="markers" :highlightId="highlightedNode"
-      :scrollWheelZoom="true" height="500px" @map-ready="onMapReady" @marker-click="handleMarkerClick" @geometric-median-click="handleGeometricMedianClick" @directions-for-each-person-click="handleDirectionsForEachPersonClick" />
+      :paths="directions" :scrollWheelZoom="true" height="500px" @map-ready="onMapReady" @marker-click="handleMarkerClick" @geometric-median-click="handleGeometricMedianClick" @directions-for-each-person-click="handleDirectionsForEachPersonClick" />
 
 
     <div class="d-flex flex-column">
@@ -71,6 +71,7 @@ const bottomFullScreen = ref(false);
 const transitivePart = ref(null);
 const leafletMap = ref(null);
 const highlightedNode = ref(null);
+const directions = ref([]);
 
 console.log('nodes:', nodes)
 function handleMarkerClick(payload) {
@@ -91,7 +92,10 @@ function handleGeometricMedianClick() {
 }
 
 function handleDirectionsForEachPersonClick() {
-  console.log('directions-for-each-person-click')
+  if(transitivePart.value) {
+    directions.value = transitivePart.value.computeDirectionsFunc();
+    console.log("Directions for each person:", directions.value);
+  }
 }
 
 let api = null
